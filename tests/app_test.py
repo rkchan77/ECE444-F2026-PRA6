@@ -84,3 +84,46 @@ def test_delete_message(client):
     rv = client.get('/delete/1')
     data = json.loads(rv.data)
     assert data["status"] == 1
+
+
+def add_post(client, title, text):
+    """Add post helper function"""
+    return client.post(
+        "/add",
+        data=dict(title=title, text=text),
+        follow_redirects=True,
+    )
+
+
+def test_search_page(client):
+    """Ensure the search page loads without a query"""
+    rv = client.get("/search/")
+    assert rv.status_code == 200
+    assert b"Search:" in rv.data
+
+
+def test_search_link_on_index(client):
+    """Ensure the index page links to the search page"""
+    rv = client.get("/")
+    assert b'href="/search/"' in rv.data
+
+
+def test_search_results(client):
+    """Ensure search matches title and text, ignoring case"""
+    login(client, app.config["USERNAME"], app.config["PASSWORD"])
+    add_post(client, "Flask notes", "first post")
+    add_post(client, "Groceries", "buy MILK")
+    rv = client.get("/search/", query_string={"query": "flask"})
+    assert b"Flask notes" in rv.data
+    assert b"Groceries" not in rv.data
+    rv = client.get("/search/", query_string={"query": "milk"})
+    assert b"Groceries" in rv.data
+    assert b"Flask notes" not in rv.data
+
+
+def test_search_results_keep_post_id(client):
+    """Ensure results carry the post id that main.js uses to delete them"""
+    login(client, app.config["USERNAME"], app.config["PASSWORD"])
+    add_post(client, "Flask notes", "first post")
+    rv = client.get("/search/", query_string={"query": "flask"})
+    assert b'<h2 id="1">' in rv.data
